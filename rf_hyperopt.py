@@ -7,10 +7,10 @@ from sklearn import metrics
 from sklearn import model_selection
 from sklearn import ensemble
 
-from skopt import gp_minimize
-from skopt import space
-np.int = int
-def optimize(params, param_names, x, y):
+from hyperopt import hp, fmin, tpe, Trials
+from hyperopt.pyll.base import scope
+
+def optimize(params, x, y):
     '''
     The main optimization function.
     This function takes all the arguments from the search space
@@ -23,9 +23,6 @@ def optimize(params, param_names, x, y):
     :param y: labels/targets
     :return: negative accuracy after 5 folds
     '''
-    # convert params to dictionary
-    params = dict(zip(param_names, params))
-
     # initialize model with current parameters
     model = ensemble.RandomForestClassifier(**params)
     
@@ -72,61 +69,36 @@ if __name__ == '__main__':
     y = df.price_range.values
 
     # define a parameter space
-    param_space = [
-        # max_depth is an integer between 3 and 10
-        space.Integer(3, 15, name='max_depth'),
-        # n_estimators is an integer between 50 and 1500
-        space.Integer(100, 1500, name='n_estimators'),
-        # criterion is a category. here we define list of categories
-        space.Categorical(['gini', 'entropy'], name='criterion'),
-        # you can also have Real numbered space and define a
-        # distribution you want to pick it from
-        space.Real(0.01, 1, prior='uniform', name='max_features')
-    ]
+    # now we use hyperopt
+    param_space = {
+        # quniform gives round(uniform(low, high) / q) * q
+        # we want int values for depth and estimators
+        'max_depth': scope.int(hp.quniform('max_depth', 1, 15, 1)),
+        'n_estimators': scope.int(
+            hp.quniform('n_estimators', 100, 1500, 1)
+        ),
+        # choice chooses from a list of values
+        'criterion': hp.choice('criterion', ['gini', 'entropy']),
+        # uniform chooses a value between two values
+        'max_features': hp.uniform('max_features', 0, 1)
+    }
 
-    # make a list of param names
-    # this has to be same order as the search space
-    # inside the main function
-    param_names = [
-        'max_depth',
-        'n_estimators',
-        'criterion',
-        'max_features'
-    ]
-
-    # by using functools partial, i am creating a
-    # new function which has same parameters as the
-    # optimize function except for the fact that
-    # only one param, i.e. the "params" parameter
-    # is required. this is how gp_minimize expects the
-    # optimization function to be. you can get rid of this
-    # by reading data inside the optimize function or by
-    # defining the optimize function here.
+    # partial function
     optimization_function = partial(
         optimize,
-        param_names=param_names,
         x=X,
         y=y
     )
 
-    # now we call gp_minimize from scikit-optimize
-    # gp_minimize uses bayesian optimization for
-    # minimization of the optimization function.
-    # we need a space of parameters, the function itself,
-    # the number of calls/iterations we want to have
-    result = gp_minimize(
-        optimization_function,
-        dimensions=param_space,
-        n_calls=15,
-        n_random_starts=10,
-        verbose=10
-    )
+    # initialize trials to keep logging information
+    trials = Trials()
 
-    # create best params dict and print it
-    best_params = dict(
-        zip(
-            param_names,
-            result.x
-        )
+    # run hyperopt
+    hopt = fmin(
+        fn=optimization_function,
+        space=param_space,
+        algo=tpe.suggest,
+        max_evals=15,
+        trials=trials
     )
-    print(best_params)
+    print(hopt)
