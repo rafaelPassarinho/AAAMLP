@@ -72,3 +72,52 @@ class SIIMDataset(torch.utils.data.Dataset):
     # image and mask paths
     for imgid in image_ids:
         files = glob.glob(os.path.join(TRAIN_PATH, imgid, "*.png"))
+        self.data[counter] = {
+            'img_path': os.path.join(
+                TRAIN_PATH, imgid + '.png'
+            ),
+            'mask_path': os.path.join(
+                TRAIN_PATH, imgid + '_mask.png'
+            ),
+        }
+
+    def __len__(self):
+        # return length of the dataset
+        return len(self.data)
+    
+    def __getitem__(self, item):
+        # for a given item index, 
+        # return image and mask tensors
+        # read image and mask paths
+        img_path = self.data[item]['img_path']
+        mask_path = self.data[item]['mask_path']
+
+        # read image and convert to RGB
+        img = Image.open(img_path)
+        img = img.convert('RGB')
+
+        # PIL image to numpy array
+        img = np.array(img)
+
+        # read mask image
+        mask = Image.open(mask_path)
+
+        # convert to binary float matrix
+        mask = (mask >=1).astype('float32')
+
+        # if this is training data, apply transforms
+        if self.transform is True:
+            augmented = self.aug(image=img, mask=mask)
+            img = augmented['image']
+            mask = augmented['mask']
+        
+        # preprocess the image using provided
+        # preprocessing tensors. this is basically
+        # image normalization
+        img = self.preprocessing_fn(img)
+
+        # return image and mask tensors
+        return {
+            'image': transforms.ToTensor()(img),
+            'mask': transforms.ToTensor()(mask).float()
+        }
