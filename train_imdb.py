@@ -113,4 +113,72 @@ def run(df, fold):
     )
 
     # create torch dataloader for validation
-    
+    valid_data_loader = torch.utils.data.DataLoader(
+        valid_dataset,
+        batch_size=config_imdb.VALID_BATCH_SIZE,
+        num_workers=1
+    )
+
+    print("Loading embeddings")
+    # load embeddings as shown previously
+    embedding_dict = load_vectors('wiki-news-300d-1M.vec')
+    embedding_matrix = create_embedding_matrix(
+        tokenizer.word_index, embedding_dict
+    )
+
+    # create a torch device, since we use gpu, we are using cuda
+    device = torch.device("cuda")
+
+    # fetch our LSTM model
+    model = lstm.LSTM(embedding_matrix)
+
+    # send model to device
+    model.to(device)
+
+    # initialize Adam optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    print("Training model")
+    # set best accuracy to zero
+    best_accuracy = 0
+    # set early stopping counter to zero
+    early_stopping_counter = 0
+    # train and validade for all epochs
+    for epoch in range(config_imdb.EPOCHS):
+        # train one epoch
+        engine_imdb.train(train_data_loader, model, optimizer, device)
+        # validate
+        outputs, targets = engine_imdb.evaluate(
+            valid_data_loader, model, device
+        )
+
+        # use threshold of 0.5
+        # please note we are using linear layer and no sigmoid
+        # you should do this threshold after sigmoid
+        # but since we are not using sigmoid, we are doing this
+        # here
+        outputs = np.array(outputs) >= 0.5
+
+        # calculate accuracy
+        accuracy = metrics.accuracy_score(targets, outputs)
+        print(
+            f"Fold={fold}, Epoch={epoch}, Accuracy={accuracy}"
+        )
+
+        # simple early stopping
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+        else:
+            early_stopping_counter += 1
+
+        # we will stop training if accuracy doesn't increase in last 2 epochs
+        if early_stopping_counter > 2:
+            break
+
+if __name__ == "__main__":
+    # read training csv
+    df = pd.read_csv('imdb_folds.csv')
+
+    # run training for 5 folds
+    for fold_ in range(5):
+        run(df, fold_)
