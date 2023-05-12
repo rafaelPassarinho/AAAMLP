@@ -4,8 +4,8 @@ import transformers
 MAX_LEN = 512
 
 # batch sizes is small because model is huge!
-TRAIN_BATCH_SIZE = 8
-VALID_BATCH_SIZE = 4
+TRAIN_BATCH_SIZE = 4
+VALID_BATCH_SIZE = 2
 
 # let's train for a maximum of 10 epochs
 EPOCHS = 10
@@ -15,6 +15,9 @@ BERT_PATH = 'bert-base-uncased'
 
 # this is where you want to save the model
 MODEL_PATH = 'model.bin'
+
+# training file
+TRAINING_FILE = 'IMDB Dataset.csv'
 
 # define the tokenizer
 # we use tokenizer and model
